@@ -29,8 +29,10 @@ import "github.com/uber-go/atomic"
 // loggers. Changing the returned logger's level will change the level on all
 // wrapped loggers.
 //
-// NOTE: Panic and Fatal may not work as expected, since the first core logger
-// will itself Panic or Fatal (interrupting the TeeLogger loop).
+// With the exception of DFatal, the returned tee logger calls .Log(level, ...)
+// on each sub logger, for each call to Debug, Info, Warn, Error, Panic, and
+// Fatal. In particular, this means that the tee logger will then perform any
+// fatal termination, or panic raising _after_ logging to all sub loggers.
 func TeeLogger(logs ...Logger) Logger {
 	switch len(logs) {
 	case 0:
@@ -69,44 +71,38 @@ func (ml multiLogger) SetLevel(lvl Level) {
 }
 
 func (ml multiLogger) Log(lvl Level, msg string, fields ...Field) {
-	for _, log := range ml.logs {
-		log.Log(lvl, msg, fields...)
-	}
+	ml.log(lvl, msg, fields)
 }
 
 func (ml multiLogger) Debug(msg string, fields ...Field) {
-	for _, log := range ml.logs {
-		log.Debug(msg, fields...)
-	}
+	ml.log(DebugLevel, msg, fields)
 }
 
 func (ml multiLogger) Info(msg string, fields ...Field) {
-	for _, log := range ml.logs {
-		log.Info(msg, fields...)
-	}
+	ml.log(InfoLevel, msg, fields)
 }
 
 func (ml multiLogger) Warn(msg string, fields ...Field) {
-	for _, log := range ml.logs {
-		log.Warn(msg, fields...)
-	}
+	ml.log(WarnLevel, msg, fields)
 }
 
 func (ml multiLogger) Error(msg string, fields ...Field) {
-	for _, log := range ml.logs {
-		log.Error(msg, fields...)
-	}
+	ml.log(ErrorLevel, msg, fields)
 }
 
 func (ml multiLogger) Panic(msg string, fields ...Field) {
-	for _, log := range ml.logs {
-		log.Panic(msg, fields...)
-	}
+	ml.log(PanicLevel, msg, fields)
+	panic(msg)
 }
 
 func (ml multiLogger) Fatal(msg string, fields ...Field) {
+	ml.log(FatalLevel, msg, fields)
+	_exit(1)
+}
+
+func (ml multiLogger) log(lvl Level, msg string, fields []Field) {
 	for _, log := range ml.logs {
-		log.Fatal(msg, fields...)
+		log.Log(lvl, msg, fields...)
 	}
 }
 

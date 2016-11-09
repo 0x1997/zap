@@ -26,6 +26,17 @@ import (
 	"github.com/uber-go/atomic"
 )
 
+// Enabler is an implementation agnostic "message checker". Its Enabled method
+// gets called to implement Meta.Enabled and Meta.Check, and should return true
+// if the given message will be logged at the given level.
+//
+// Enablers are primarily intended to be used to implement deterministic
+// filters; concerns like sampling are better implemented as a Logger
+// implementation.
+type Enabler interface {
+	Enabled(Level, string) bool
+}
+
 // Meta is implementation-agnostic state management for Loggers. Most Logger
 // implementations can reduce the required boilerplate by embedding a Meta.
 //

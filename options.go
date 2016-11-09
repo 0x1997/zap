@@ -20,6 +20,8 @@
 
 package zap
 
+import "github.com/uber-go/atomic"
+
 // Option is used to set options for the logger.
 type Option interface {
 	apply(*Meta)
@@ -34,7 +36,7 @@ func (f optionFunc) apply(m *Meta) {
 
 // This allows any Level to be used as an option.
 func (l Level) apply(m *Meta) {
-	m.SetLevel(l)
+	m.Enabler = l
 }
 
 // Enabled return true if the message level is at or above this level.
@@ -80,4 +82,39 @@ func Development() Option {
 	return optionFunc(func(m *Meta) {
 		m.Development = true
 	})
+}
+
+// DynamicLevel supports changing the level of one or more loggers atomically
+// at runtime. It can be passed as an Option to any supporting logger
+// constructor, or assigned to Meta.Enabled directly if needed.
+type DynamicLevel struct {
+	lvl *atomic.Int32
+}
+
+// NewDynamicLevel creates a new dynamic level Option / MetaCheck.
+func NewDynamicLevel() DynamicLevel {
+	return DynamicLevel{
+		lvl: atomic.NewInt32(int32(InfoLevel)),
+	}
+}
+
+// apply implements the Option interface.
+func (dl DynamicLevel) apply(m *Meta) {
+	m.Enabler = dl
+}
+
+// Enabled implements the MetaEnabled interface, to aid in implementing
+// Logger.Check.
+func (dl DynamicLevel) Enabled(lvl Level, _ string) bool {
+	return lvl >= dl.Level()
+}
+
+// Level atomically returns the minimum enabled log level.
+func (dl DynamicLevel) Level() Level {
+	return Level(dl.lvl.Load())
+}
+
+// SetLevel atomically alters the logging level.
+func (dl DynamicLevel) SetLevel(lvl Level) {
+	dl.lvl.Store(int32(lvl))
 }

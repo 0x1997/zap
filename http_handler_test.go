@@ -37,9 +37,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newHandler() (Logger, http.Handler) {
-	logger, _ := spy.New()
-	return logger, NewHTTPHandler(logger)
+func newHandler() (DynamicLevel, Logger, http.Handler) {
+	dl := NewDynamicLevel()
+	logger, _ := spy.New(dl)
+	return dl, logger, NewHTTPHandler(dl)
 }
 
 func assertCodeOK(t testing.TB, code int) {
@@ -86,44 +87,44 @@ func makeRequest(t testing.TB, method string, handler http.Handler, reader io.Re
 }
 
 func TestHTTPHandlerGetLevel(t *testing.T) {
-	logger, handler := newHandler()
+	dl, _, handler := newHandler()
 	code, body := makeRequest(t, "GET", handler, nil)
 	assertCodeOK(t, code)
-	assertResponse(t, logger.Level(), body)
+	assertResponse(t, dl.Level(), body)
 }
 
 func TestHTTPHandlerPutLevel(t *testing.T) {
-	logger, handler := newHandler()
+	dl, _, handler := newHandler()
 
 	code, body := makeRequest(t, "PUT", handler, strings.NewReader(`{"level":"warn"}`))
 
 	assertCodeOK(t, code)
-	assertResponse(t, logger.Level(), body)
+	assertResponse(t, dl.Level(), body)
 }
 
 func TestHTTPHandlerPutUnrecognizedLevel(t *testing.T) {
-	_, handler := newHandler()
+	_, _, handler := newHandler()
 	code, body := makeRequest(t, "PUT", handler, strings.NewReader(`{"level":"unrecognized-level"}`))
 	assertCodeBadRequest(t, code)
 	assertJSONError(t, body)
 }
 
 func TestHTTPHandlerNotJSON(t *testing.T) {
-	_, handler := newHandler()
+	_, _, handler := newHandler()
 	code, body := makeRequest(t, "PUT", handler, strings.NewReader(`{`))
 	assertCodeBadRequest(t, code)
 	assertJSONError(t, body)
 }
 
 func TestHTTPHandlerNoLevelSpecified(t *testing.T) {
-	_, handler := newHandler()
+	_, _, handler := newHandler()
 	code, body := makeRequest(t, "PUT", handler, strings.NewReader(`{}`))
 	assertCodeBadRequest(t, code)
 	assertJSONError(t, body)
 }
 
 func TestHTTPHandlerMethodNotAllowed(t *testing.T) {
-	_, handler := newHandler()
+	_, _, handler := newHandler()
 	code, body := makeRequest(t, "POST", handler, strings.NewReader(`{`))
 	assertCodeMethodNotAllowed(t, code)
 	assertJSONError(t, body)

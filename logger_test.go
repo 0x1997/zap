@@ -74,44 +74,42 @@ func withJSONLogger(t testing.TB, opts []Option, f func(Logger, *testBuffer)) {
 	assert.Empty(t, errSink.String(), "Expected error sink to be empty.")
 }
 
-func TestJSONLoggerSetLevel(t *testing.T) {
-	withJSONLogger(t, nil, func(logger Logger, _ *testBuffer) {
-		assert.Equal(t, DebugLevel, logger.Level(), "Unexpected initial level.")
-		logger.SetLevel(ErrorLevel)
-		assert.Equal(t, ErrorLevel, logger.Level(), "Unexpected level after SetLevel.")
-	})
+func TestDynamicLevel(t *testing.T) {
+	dl := NewDynamicLevel()
+	assert.Equal(t, InfoLevel, dl.Level(), "Unexpected initial level.")
+	dl.SetLevel(ErrorLevel)
+	assert.Equal(t, ErrorLevel, dl.Level(), "Unexpected level after SetLevel.")
 }
 
-func TestJSONLoggerConcurrentLevelMutation(t *testing.T) {
+func TestDynamicLevel_concurrentMutation(t *testing.T) {
+	dl := NewDynamicLevel()
 	// Trigger races for non-atomic level mutations.
-	logger := New(newJSONEncoder())
-
 	proceed := make(chan struct{})
 	wg := &sync.WaitGroup{}
 	runConcurrently(10, 100, wg, func() {
 		<-proceed
-		logger.Level()
+		dl.Level()
 	})
 	runConcurrently(10, 100, wg, func() {
 		<-proceed
-		logger.SetLevel(WarnLevel)
+		dl.SetLevel(WarnLevel)
 	})
 	close(proceed)
 	wg.Wait()
 }
 
-func TestJSONLoggerRuntimeLevelChange(t *testing.T) {
-	// Test that changing a logger's level also changes the level of all
-	// ancestors and descendants.
-	withJSONLogger(t, opts(InfoLevel), func(grandparent Logger, buf *testBuffer) {
+func TestJSONLogger_DynamicLevel(t *testing.T) {
+	// Test that the DynamicLevel applys to all ancestors and descendants.
+	dl := NewDynamicLevel()
+	withJSONLogger(t, opts(dl), func(grandparent Logger, buf *testBuffer) {
 		parent := grandparent.With(Int("generation", 2))
 		child := parent.With(Int("generation", 3))
 		all := []Logger{grandparent, parent, child}
 
-		assert.Equal(t, InfoLevel, parent.Level(), "expected initial InfoLevel")
+		assert.Equal(t, InfoLevel, dl.Level(), "expected initial InfoLevel")
 
 		for round, lvl := range []Level{InfoLevel, DebugLevel, WarnLevel} {
-			parent.SetLevel(lvl)
+			dl.SetLevel(lvl)
 			for loggerI, log := range all {
 				log.Debug("@debug", Int("round", round), Int("logger", loggerI))
 			}

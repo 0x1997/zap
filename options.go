@@ -37,6 +37,18 @@ func (l Level) apply(m *Meta) {
 	m.SetLevel(l)
 }
 
+// Enabled return true if the message level is at or above this level.
+// Furthermore, Enabled always returns true for PanicLevel and FatalLevel.
+//
+// For example, WarnLevel.Enabled will return true for WarnLevel, ErrorLevel,
+// PanicLevel, and FatalLevel, but return false for InfoLevel and DebugLevel.
+//
+// This implements the Enabler interface so that Levels may be set directly to
+// Meta.Enabler.
+func (l Level) Enabled(lvl Level, _ string) bool {
+	return lvl >= l
+}
+
 // Fields sets the initial fields for the logger.
 func Fields(fields ...Field) Option {
 	return optionFunc(func(m *Meta) {

@@ -20,8 +20,6 @@
 
 package zap
 
-import "github.com/uber-go/atomic"
-
 // TeeLogger creates a Logger that duplicates its log calls to two or
 // more loggers. It is similar to io.MultiWriter.
 //
@@ -40,35 +38,11 @@ func TeeLogger(logs ...Logger) Logger {
 	case 1:
 		return logs[0]
 	default:
-		lvl := logs[0].Level()
-		for _, log := range logs[1:] {
-			if ll := log.Level(); ll < lvl {
-				lvl = ll
-			}
-		}
-		ml := &multiLogger{
-			logs: logs,
-			lvl:  atomic.NewInt32(int32(lvl)),
-		}
-		return ml
+		return multiLogger(logs)
 	}
 }
 
-type multiLogger struct {
-	logs []Logger
-	lvl  *atomic.Int32
-}
-
-func (ml multiLogger) Level() Level {
-	return Level(ml.lvl.Load())
-}
-
-func (ml multiLogger) SetLevel(lvl Level) {
-	for _, log := range ml.logs {
-		log.SetLevel(lvl)
-	}
-	ml.lvl.Store(int32(lvl))
-}
+type multiLogger []Logger
 
 func (ml multiLogger) Log(lvl Level, msg string, fields ...Field) {
 	ml.log(lvl, msg, fields)
@@ -101,23 +75,23 @@ func (ml multiLogger) Fatal(msg string, fields ...Field) {
 }
 
 func (ml multiLogger) log(lvl Level, msg string, fields []Field) {
-	for _, log := range ml.logs {
+	for _, log := range ml {
 		log.Log(lvl, msg, fields...)
 	}
 }
 
 func (ml multiLogger) DFatal(msg string, fields ...Field) {
-	for _, log := range ml.logs {
+	for _, log := range ml {
 		log.DFatal(msg, fields...)
 	}
 }
 
 func (ml multiLogger) With(fields ...Field) Logger {
-	ml.logs = append([]Logger(nil), ml.logs...)
-	for i, log := range ml.logs {
-		ml.logs[i] = log.With(fields...)
+	ml = append([]Logger(nil), ml...)
+	for i, log := range ml {
+		ml[i] = log.With(fields...)
 	}
-	return ml
+	return multiLogger(ml)
 }
 
 func (ml multiLogger) Check(lvl Level, msg string) *CheckedMessage {
@@ -128,7 +102,7 @@ lvlSwitch:
 		// is disabled.
 		break
 	default:
-		for _, log := range ml.logs {
+		for _, log := range ml {
 			if cm := log.Check(lvl, msg); cm.OK() {
 				break lvlSwitch
 			}

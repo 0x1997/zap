@@ -98,70 +98,66 @@ func (s *sampler) With(fields ...zap.Field) zap.Logger {
 }
 
 func (s *sampler) Check(lvl zap.Level, msg string) *zap.CheckedMessage {
-	if !s.check(lvl, msg) {
+	cm := s.Logger.Check(lvl, msg)
+	if cm == nil {
 		return nil
 	}
-	return zap.NewCheckedMessage(s.Logger, lvl, msg)
+	switch lvl {
+	case zap.PanicLevel, zap.FatalLevel:
+		break
+	default:
+		if !s.sampled(lvl, msg) {
+			return nil
+		}
+	}
+	return cm
 }
 
 func (s *sampler) Log(lvl zap.Level, msg string, fields ...zap.Field) {
-	if s.check(lvl, msg) {
+	if s.Logger.Check(lvl, msg) != nil && s.sampled(lvl, msg) {
 		s.Logger.Log(lvl, msg, fields...)
 	}
 }
 
 func (s *sampler) Debug(msg string, fields ...zap.Field) {
-	if s.check(zap.DebugLevel, msg) {
+	if s.Logger.Check(zap.DebugLevel, msg) != nil && s.sampled(zap.DebugLevel, msg) {
 		s.Logger.Debug(msg, fields...)
 	}
 }
 
 func (s *sampler) Info(msg string, fields ...zap.Field) {
-	if s.check(zap.InfoLevel, msg) {
+	if s.Logger.Check(zap.InfoLevel, msg) != nil && s.sampled(zap.InfoLevel, msg) {
 		s.Logger.Info(msg, fields...)
 	}
 }
 
 func (s *sampler) Warn(msg string, fields ...zap.Field) {
-	if s.check(zap.WarnLevel, msg) {
+	if s.Logger.Check(zap.WarnLevel, msg) != nil && s.sampled(zap.WarnLevel, msg) {
 		s.Logger.Warn(msg, fields...)
 	}
 }
 
 func (s *sampler) Error(msg string, fields ...zap.Field) {
-	if s.check(zap.ErrorLevel, msg) {
+	if s.Logger.Check(zap.ErrorLevel, msg) != nil && s.sampled(zap.ErrorLevel, msg) {
 		s.Logger.Error(msg, fields...)
 	}
 }
 
 func (s *sampler) Panic(msg string, fields ...zap.Field) {
-	if s.check(zap.PanicLevel, msg) {
-		s.Logger.Panic(msg, fields...)
-	}
+	s.Logger.Panic(msg, fields...)
 }
 
 func (s *sampler) Fatal(msg string, fields ...zap.Field) {
-	if s.check(zap.FatalLevel, msg) {
-		s.Logger.Fatal(msg, fields...)
-	}
+	s.Logger.Fatal(msg, fields...)
 }
 
 func (s *sampler) DFatal(msg string, fields ...zap.Field) {
-	if s.check(zap.ErrorLevel, msg) {
+	if s.Logger.Check(zap.ErrorLevel, msg) != nil && s.sampled(zap.ErrorLevel, msg) {
 		s.Logger.DFatal(msg, fields...)
 	}
 }
 
-func (s *sampler) check(lvl zap.Level, msg string) bool {
-	switch lvl {
-	case zap.PanicLevel, zap.FatalLevel:
-		// Ignore sampling for Panic and Fatal, since it should always
-		// cause a panic or exit.
-		return true
-	}
-	if lvl < s.Level() {
-		return false
-	}
+func (s *sampler) sampled(lvl zap.Level, msg string) bool {
 	n := s.counts.Inc(msg)
 	if n <= s.first {
 		return true

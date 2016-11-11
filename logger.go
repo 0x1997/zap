@@ -158,22 +158,25 @@ func (log *logger) log(lvl Level, msg string, fields []Field) {
 		return
 	}
 
+	t := _timeNow().UTC()
 	temp := log.Encoder.Clone()
 	addFields(temp, fields)
 
-	entry := Entry{
-		Level:   lvl,
-		Message: msg,
-		Time:    _timeNow().UTC(),
-		enc:     temp,
-	}
-	for _, hook := range log.Hooks {
-		if err := hook(&entry); err != nil {
-			log.internalError("hook", err)
+	if len(log.Hooks) > 0 {
+		entry := Entry{
+			Level:   lvl,
+			Message: msg,
+			Time:    t,
+			enc:     temp,
+		}
+		for _, hook := range log.Hooks {
+			if err := hook(&entry); err != nil {
+				log.internalError("hook", err)
+			}
 		}
 	}
 
-	if err := temp.WriteEntry(log.Output, entry.Message, entry.Level, entry.Time); err != nil {
+	if err := temp.WriteEntry(log.Output, msg, lvl, t); err != nil {
 		log.internalError("encoder", err)
 	}
 	temp.Free()

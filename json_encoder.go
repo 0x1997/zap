@@ -206,10 +206,7 @@ func (enc *jsonEncoder) WriteEntry(sink io.Writer, msg string, lvl Level, t time
 	enc.timeF(t).AddTo(final)
 	enc.messageF(msg).AddTo(final)
 	if len(enc.bytes) > 0 {
-		if len(final.bytes) > 1 {
-			// All the formatters may have been no-ops.
-			final.bytes = append(final.bytes, ',')
-		}
+		final.bytes = append(final.bytes, ',')
 		final.bytes = append(final.bytes, enc.bytes...)
 	}
 	final.bytes = append(final.bytes, '}', '\n')

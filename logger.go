@@ -23,10 +23,32 @@ package zap
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 // For tests.
-var _exit = os.Exit
+var (
+	_exit    = os.Exit
+	_timeNow = time.Now
+)
+
+// An Entry represents a complete log message. The entry's structured context
+// is already serialized, but the log level, time, and message are available
+// for inspection and modification.
+//
+// Entries are pooled, so any functions that accept them must be careful not to
+// retain references to them.
+type Entry struct {
+	Level   Level
+	Time    time.Time
+	Message string
+	enc     Encoder
+}
+
+// Fields returns a mutable reference to the entry's accumulated context.
+func (e Entry) Fields() KeyValue {
+	return e.enc
+}
 
 // A Logger enables leveled, structured logging. All methods are safe for
 // concurrent use.
@@ -139,9 +161,14 @@ func (log *logger) log(lvl Level, msg string, fields []Field) {
 	temp := log.Encoder.Clone()
 	addFields(temp, fields)
 
-	entry := newEntry(lvl, msg, temp)
+	entry := Entry{
+		Level:   lvl,
+		Message: msg,
+		Time:    _timeNow().UTC(),
+		enc:     temp,
+	}
 	for _, hook := range log.Hooks {
-		if err := hook(entry); err != nil {
+		if err := hook(&entry); err != nil {
 			log.internalError("hook", err)
 		}
 	}
@@ -150,7 +177,6 @@ func (log *logger) log(lvl Level, msg string, fields []Field) {
 		log.internalError("encoder", err)
 	}
 	temp.Free()
-	entry.free()
 
 	if lvl > ErrorLevel {
 		// Sync on Panic and Fatal, since they may crash the program.

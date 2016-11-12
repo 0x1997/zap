@@ -30,6 +30,37 @@ type CheckedMessage struct {
 	used   atomic.Uint32
 	lvl    Level
 	msg    string
+	cms    []*CheckedMessage
+}
+
+// MultiCheckedMessage combines one or more CheckedMessages into one, keeping
+// only those that return true from OK().
+func MultiCheckedMessage(cms []*CheckedMessage) *CheckedMessage {
+	var (
+		cm *CheckedMessage
+		i  int
+	)
+	for ; i < len(cms); i++ {
+		if cms[i].OK() {
+			cm = cms[i]
+			break
+		}
+	}
+	for ; i < len(cms); i++ {
+		if cms[i].OK() {
+			ccms := make([]*CheckedMessage, 2, len(cms))
+			ccms[0] = cm
+			ccms[1] = cms[i]
+			cm = &CheckedMessage{cms: ccms}
+			break
+		}
+	}
+	for ; i < len(cms); i++ {
+		if cms[i].OK() {
+			cm.cms = append(cm.cms, cms[i])
+		}
+	}
+	return cm
 }
 
 // NewCheckedMessage constructs a CheckedMessage. It's only intended for use by
@@ -58,6 +89,14 @@ func (m *CheckedMessage) Write(fields ...Field) {
 		}
 		return
 	}
+
+	if m.cms != nil {
+		for _, cm := range m.cms {
+			cm.Write(fields...)
+		}
+		return
+	}
+
 	switch m.lvl {
 	case DebugLevel:
 		m.logger.Debug(m.msg, fields...)

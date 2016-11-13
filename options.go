@@ -25,10 +25,10 @@ type Option interface {
 	apply(*Meta)
 }
 
-// optionFunc wraps a func so it satisfies the Option interface.
-type optionFunc func(*Meta)
+// OptionFunc wraps a func so it satisfies the Option interface.
+type OptionFunc func(*Meta)
 
-func (f optionFunc) apply(m *Meta) {
+func (f OptionFunc) apply(m *Meta) {
 	f(m)
 }
 
@@ -38,7 +38,7 @@ func (lvl AtomicLevel) apply(m *Meta) { m.LevelEnabler = lvl }
 
 // Fields sets the initial fields for the logger.
 func Fields(fields ...Field) Option {
-	return optionFunc(func(m *Meta) {
+	return OptionFunc(func(m *Meta) {
 		addFields(m.Encoder, fields)
 	})
 }
@@ -47,7 +47,7 @@ func Fields(fields ...Field) Option {
 // is automatically wrapped with a mutex, so it need not be safe for concurrent
 // use.
 func Output(w WriteSyncer) Option {
-	return optionFunc(func(m *Meta) {
+	return OptionFunc(func(m *Meta) {
 		m.Output = newLockedWriteSyncer(w)
 	})
 }
@@ -56,7 +56,7 @@ func Output(w WriteSyncer) Option {
 // supplied WriteSyncer is automatically wrapped with a mutex, so it need not be
 // safe for concurrent use.
 func ErrorOutput(w WriteSyncer) Option {
-	return optionFunc(func(m *Meta) {
+	return OptionFunc(func(m *Meta) {
 		m.ErrorOutput = newLockedWriteSyncer(w)
 	})
 }
@@ -64,7 +64,7 @@ func ErrorOutput(w WriteSyncer) Option {
 // Development puts the logger in development mode, which alters the behavior
 // of the DPanic method.
 func Development() Option {
-	return optionFunc(func(m *Meta) {
+	return OptionFunc(func(m *Meta) {
 		m.Development = true
 	})
 }

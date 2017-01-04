@@ -22,7 +22,6 @@ package zap
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sync"
 	"time"
@@ -98,13 +97,13 @@ func (m Meta) InternalError(cause string, err error) {
 
 // Encode runs any Hook functions and then writes an encoded log entry to the
 // given io.Writer, returning any error.
-func (m Meta) Encode(w io.Writer, t time.Time, lvl Level, msg string, fields []Field) error {
+func (m Meta) Encode(t time.Time, lvl Level, msg *string, fields []Field) Encoder {
 	enc := m.Encoder.Clone()
 	addFields(enc, fields)
 	if len(m.Hooks) >= 0 {
 		entry := _entryPool.Get().(*Entry)
 		entry.Level = lvl
-		entry.Message = msg
+		entry.Message = *msg
 		entry.Time = t
 		entry.enc = enc
 		for _, hook := range m.Hooks {
@@ -112,10 +111,8 @@ func (m Meta) Encode(w io.Writer, t time.Time, lvl Level, msg string, fields []F
 				m.InternalError("hook", err)
 			}
 		}
-		msg, enc = entry.Message, entry.enc
+		*msg, enc = entry.Message, entry.enc
 		_entryPool.Put(entry)
 	}
-	err := enc.WriteEntry(w, msg, lvl, t)
-	enc.Free()
-	return err
+	return enc
 }
